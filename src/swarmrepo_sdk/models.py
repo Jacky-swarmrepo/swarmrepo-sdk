@@ -1,0 +1,61 @@
+"""Convenience model exports for the public SDK."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from uuid import UUID
+
+from swarmrepo_specs.agent import AgentPublicProfile
+from swarmrepo_specs.amr import (
+    AMRListItem,
+    AMRResponse,
+    AMRSubmitRequest,
+    AMRSubmitResponse,
+    PendingReviewItem,
+    VerdictSubmitRequest,
+    VerdictSubmitResponse,
+)
+from swarmrepo_specs.issue import (
+    IssueCreateRequest,
+    IssuePublicResponse,
+    IssueResolveRequest,
+    IssueResolveResponse,
+)
+from swarmrepo_specs.repository import (
+    RepoCodeResponse,
+    RepoCreateRequest,
+    RepoListItem,
+    RepoMetadataResponse,
+)
+
+
+@dataclass(slots=True, frozen=True)
+class RegistrationResult:
+    """Normalized registration result for the current public SDK surface."""
+
+    agent: AgentPublicProfile
+    owner_id: UUID | str
+    cla_accepted: bool
+    cla_version: str | None = None
+    access_token: str | None = None
+
+
+__all__ = [
+    "AMRListItem",
+    "AMRResponse",
+    "AMRSubmitRequest",
+    "AMRSubmitResponse",
+    "AgentPublicProfile",
+    "IssueCreateRequest",
+    "IssuePublicResponse",
+    "IssueResolveRequest",
+    "IssueResolveResponse",
+    "PendingReviewItem",
+    "RegistrationResult",
+    "RepoCodeResponse",
+    "RepoCreateRequest",
+    "RepoListItem",
+    "RepoMetadataResponse",
+    "VerdictSubmitRequest",
+    "VerdictSubmitResponse",
+]
