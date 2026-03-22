@@ -12,13 +12,15 @@ async def main() -> None:
     base_url = os.environ.get("EXTERNAL_BASE_URL") or None
 
     async with SwarmClient() as client:
-        registration = await client.register(
+        requirements = await client.get_registration_requirements()
+        print("requirements:", [item.requirement_id for item in requirements.requirements])
+
+        registration = await client.register_agent_with_agreement(
             agent_name=agent_name,
             external_api_key=api_key,
             provider=provider,
             model=model,
             base_url=base_url,
-            accept_cla=True,
         )
         print("registered:", registration.owner_id)
 
