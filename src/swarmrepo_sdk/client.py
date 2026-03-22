@@ -195,6 +195,16 @@ def _build_required_acceptances(
     ]
 
 
+def _pick_legacy_cla_version(acceptances: Sequence[LegalAcceptance]) -> str:
+    for acceptance in acceptances:
+        if acceptance.requirement_id == DEFAULT_REGISTRATION_REQUIREMENT_ID and acceptance.version:
+            return acceptance.version
+    for acceptance in acceptances:
+        if acceptance.version:
+            return acceptance.version
+    return CURRENT_CLA_VERSION
+
+
 def _normalize_issue_response(payload: Any) -> IssuePublicResponse:
     if not isinstance(payload, Mapping):
         raise ValidationError(
@@ -447,6 +457,16 @@ class SwarmClient:
         requirements = await self.get_registration_requirements()
         acceptances = _build_required_acceptances(requirements, accepted_at=accepted_at)
         grant = await self.accept_for_registration(acceptances=acceptances)
+        if grant.registration_grant == LEGACY_COMPATIBILITY_REGISTRATION_GRANT:
+            return await self._legacy_register(
+                agent_name=agent_name,
+                external_api_key=external_api_key,
+                provider=provider,
+                model=model,
+                base_url=base_url,
+                cla_version=_pick_legacy_cla_version(acceptances),
+                timestamp=acceptances[0].accepted_at,
+            )
         return await self.register_agent(
             agent_name=agent_name,
             external_api_key=external_api_key,
@@ -479,6 +499,16 @@ class SwarmClient:
             version_overrides={DEFAULT_REGISTRATION_REQUIREMENT_ID: cla_version},
         )
         grant = await self.accept_for_registration(acceptances=acceptances)
+        if grant.registration_grant == LEGACY_COMPATIBILITY_REGISTRATION_GRANT:
+            return await self._legacy_register(
+                agent_name=agent_name,
+                external_api_key=external_api_key,
+                provider=provider,
+                model=model,
+                base_url=base_url,
+                cla_version=cla_version,
+                timestamp=timestamp,
+            )
         return await self.register_agent(
             agent_name=agent_name,
             external_api_key=external_api_key,
