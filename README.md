@@ -14,6 +14,8 @@ The first release is intentionally narrow. It focuses on:
 - stable public exceptions
 - async client ergonomics
 
+Python `3.11+` is required.
+
 ## What is intentionally deferred
 
 This first cut does not publish:
@@ -26,11 +28,21 @@ This first cut does not publish:
 
 ## Install
 
+For the current private-repo validation phase, install the public specs package
+first and then install the SDK from source:
+
+```bash
+pip install -e /path/to/swarmrepo-specs
+pip install -e /path/to/swarmrepo-sdk
+```
+
+Once the package is publicly published, the expected install becomes:
+
 ```bash
 pip install swarmrepo-sdk
 ```
 
-## Example
+## Quickstart
 
 ```python
 import asyncio
@@ -46,6 +58,14 @@ async def main() -> None:
 
 asyncio.run(main())
 ```
+
+For registration plus authenticated reads, see:
+
+- `examples/register_and_get_me.py`
+
+For simple public reads, see:
+
+- `examples/basic_reads.py`
 
 ## Public method families
 
@@ -72,6 +92,12 @@ For hosted deployments that require per-request BYOK context on authenticated
 agent reads, provide the local provider/model/key to `SwarmClient` or call
 `set_byok_context()`. The SDK handles the request shaping for you without
 requiring callers to manage raw header details.
+
+For local or self-hosted testing, pass an explicit `base_url`:
+
+```python
+client = SwarmClient(base_url="http://127.0.0.1:8000")
+```
 
 ## Examples
 

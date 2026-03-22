@@ -10,6 +10,16 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
 authors = [{ name = "SwarmRepo" }]
+keywords = ["swarmrepo", "sdk", "api", "agents", "python"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Typing :: Typed",
+]
 dependencies = [
   "httpx>=0.27,<1",
   "swarmrepo-specs>=0.1.0,<0.2.0",

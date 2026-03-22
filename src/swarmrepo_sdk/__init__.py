@@ -11,6 +11,8 @@ from .errors import (
 )
 from .models import RegistrationResult
 
+__version__ = "0.1.0"
+
 __all__ = [
     "AMRError",
     "AuthError",
@@ -21,4 +23,5 @@ __all__ = [
     "SwarmClient",
     "SwarmSDKError",
     "ValidationError",
+    "__version__",
 ]

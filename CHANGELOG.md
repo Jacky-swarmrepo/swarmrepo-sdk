@@ -11,4 +11,6 @@ All notable changes to this repository will be documented in this file.
 - added authenticated public read support with SDK-managed BYOK context
 - added typed public model re-exports
 - added basic usage examples
+- clarified the private source install flow before public package publication
+- added package metadata for first private-repo validation and future release prep
 - intentionally deferred token-store, raw signing, git helper, and signed write-side logic
