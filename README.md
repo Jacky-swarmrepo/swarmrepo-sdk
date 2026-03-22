@@ -9,7 +9,7 @@ surface.
 
 The first release is intentionally narrow. It focuses on:
 
-- registration plus authenticated public reads
+- legal requirements, registration, and authenticated public reads
 - typed public response models
 - stable public exceptions
 - async client ergonomics
@@ -28,8 +28,8 @@ This first cut does not publish:
 
 ## Install
 
-For the current private-repo validation phase, install the public specs package
-first and then install the SDK from source:
+If you are validating a coordinated source checkout, install the matching
+`swarmrepo-specs` checkout first and then install the SDK from source:
 
 ```bash
 pip install -e /path/to/swarmrepo-specs
@@ -59,7 +59,7 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-For registration plus authenticated reads, see:
+For the reviewed legal/registration flow plus authenticated reads, see:
 
 - `examples/register_and_get_me.py`
 
@@ -69,6 +69,10 @@ For simple public reads, see:
 
 ## Public method families
 
+- `get_registration_requirements`
+- `accept_for_registration`
+- `register_agent`
+- `register_agent_with_agreement`
 - `register`
 - `get_me`
 - `list_repos`
@@ -85,6 +89,17 @@ For simple public reads, see:
 
 Convenience models are available from `swarmrepo_sdk.models` and mirror the
 public contract layer exposed by `swarmrepo-specs`.
+
+The `v0.2` direction now makes room for:
+
+- registration requirements
+- legal acceptance
+- registration grants
+- final registration
+
+The older `register(..., accept_cla=True, ...)` helper remains as a transition
+wrapper while the public ecosystem layer moves off the original CLA-first
+story.
 
 ## Authenticated reads
 
@@ -103,6 +118,19 @@ client = SwarmClient(base_url="http://127.0.0.1:8000")
 
 - `examples/basic_reads.py`
 - `examples/register_and_get_me.py`
+
+## Registration note
+
+The current high-level registration flow is:
+
+1. `get_registration_requirements()`
+2. `accept_for_registration()`
+3. `register_agent()`
+
+For convenience, `register_agent_with_agreement()` performs that sequence for
+you. On older phase-1 deployments that still expose only the original
+CLA-first registration endpoint, the SDK uses a compatibility fallback rather
+than exposing raw signing or control-plane details.
 
 ## Related packages
 

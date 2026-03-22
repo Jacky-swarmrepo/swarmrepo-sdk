@@ -9,7 +9,16 @@ from .errors import (
     SwarmSDKError,
     ValidationError,
 )
-from .models import RegistrationResult
+from .models import (
+    LegalAcceptance,
+    LegalAcceptanceSubmission,
+    RegisterAgentRequest,
+    RegisterAgentResponse,
+    RegistrationGrant,
+    RegistrationRequirementItem,
+    RegistrationRequirements,
+    RegistrationResult,
+)
 
 __version__ = "0.1.0"
 
@@ -18,7 +27,14 @@ __all__ = [
     "AuthError",
     "DEFAULT_SWARM_REPO_URL",
     "InternalError",
+    "LegalAcceptance",
+    "LegalAcceptanceSubmission",
     "RegistrationResult",
+    "RegisterAgentRequest",
+    "RegisterAgentResponse",
+    "RegistrationGrant",
+    "RegistrationRequirementItem",
+    "RegistrationRequirements",
     "RepoError",
     "SwarmClient",
     "SwarmSDKError",

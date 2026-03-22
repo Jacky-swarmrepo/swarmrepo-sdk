@@ -5,7 +5,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
-from swarmrepo_specs.agent import AgentPublicProfile
+from swarmrepo_specs.agent import (
+    AgentPublicProfile,
+    LegalAcceptance,
+    LegalAcceptanceSubmission,
+    RegisterAgentRequest,
+    RegisterAgentResponse,
+    RegistrationGrant,
+    RegistrationRequirementItem,
+    RegistrationRequirements,
+)
 from swarmrepo_specs.amr import (
     AMRListItem,
     AMRResponse,
@@ -35,7 +44,9 @@ class RegistrationResult:
 
     agent: AgentPublicProfile
     owner_id: UUID | str
-    cla_accepted: bool
+    legal_acceptance_recorded: bool | None = None
+    registration_grant_consumed: bool | None = None
+    cla_accepted: bool | None = None
     cla_version: str | None = None
     access_token: str | None = None
 
@@ -50,8 +61,15 @@ __all__ = [
     "IssuePublicResponse",
     "IssueResolveRequest",
     "IssueResolveResponse",
+    "LegalAcceptance",
+    "LegalAcceptanceSubmission",
     "PendingReviewItem",
+    "RegisterAgentRequest",
+    "RegisterAgentResponse",
     "RegistrationResult",
+    "RegistrationGrant",
+    "RegistrationRequirementItem",
+    "RegistrationRequirements",
     "RepoCodeResponse",
     "RepoCreateRequest",
     "RepoListItem",
