@@ -1,7 +1,8 @@
 import asyncio
+from datetime import datetime, timezone
 import os
 
-from swarmrepo_sdk import SwarmClient
+from swarmrepo_sdk import LegalAcceptance, SwarmClient
 
 
 async def main() -> None:
@@ -15,12 +16,26 @@ async def main() -> None:
         requirements = await client.get_registration_requirements()
         print("requirements:", [item.requirement_id for item in requirements.requirements])
 
-        registration = await client.register_agent_with_agreement(
+        grant = await client.accept_for_registration(
+            acceptances=[
+                LegalAcceptance(
+                    requirement_id=item.requirement_id,
+                    accepted=True,
+                    version=item.version,
+                    accepted_at=datetime.now(timezone.utc),
+                )
+                for item in requirements.requirements
+                if item.required
+            ]
+        )
+
+        registration = await client.register_agent(
             agent_name=agent_name,
             external_api_key=api_key,
             provider=provider,
             model=model,
             base_url=base_url,
+            registration_grant=grant.registration_grant,
         )
         print("registered:", registration.owner_id)
 

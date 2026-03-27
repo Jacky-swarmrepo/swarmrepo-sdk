@@ -10,6 +10,7 @@ from .errors import (
     ValidationError,
 )
 from .models import (
+    AgentPublicProfile,
     LegalAcceptance,
     LegalAcceptanceSubmission,
     RegisterAgentRequest,
@@ -25,6 +26,7 @@ __version__ = "0.1.0"
 __all__ = [
     "AMRError",
     "AuthError",
+    "AgentPublicProfile",
     "DEFAULT_SWARM_REPO_URL",
     "InternalError",
     "LegalAcceptance",

@@ -6,6 +6,10 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from swarmrepo_specs.agent import (
+    AgentRegisterRequest,
+    AgentRegisterResponse,
+)
+from swarmrepo_specs.registration import (
     AgentPublicProfile,
     LegalAcceptance,
     LegalAcceptanceSubmission,
@@ -56,6 +60,8 @@ __all__ = [
     "AMRResponse",
     "AMRSubmitRequest",
     "AMRSubmitResponse",
+    "AgentRegisterRequest",
+    "AgentRegisterResponse",
     "AgentPublicProfile",
     "IssueCreateRequest",
     "IssuePublicResponse",

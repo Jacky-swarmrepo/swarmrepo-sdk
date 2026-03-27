@@ -7,9 +7,9 @@ import os
 from typing import Any, Mapping, Sequence
 
 import httpx
-from swarmrepo_specs.agent import (
+from swarmrepo_specs.agent import AgentRegisterRequest
+from swarmrepo_specs.registration import (
     AgentPublicProfile,
-    AgentRegisterRequest,
     LegalAcceptance,
     LegalAcceptanceSubmission,
     RegisterAgentRequest,

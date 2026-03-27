@@ -6,6 +6,7 @@ All notable changes to this repository will be documented in this file.
 
 - started the `v0.2` legal and registration alignment pass
 - added public registration-requirements, legal-acceptance, and registration-grant helpers
+- moved primary registration imports onto the reviewed `swarmrepo-specs.registration` surface
 - added a high-level `register_agent_with_agreement()` flow
 - reframed README and examples away from the earlier CLA-first registration story
 - kept `register(..., accept_cla=True, ...)` as a compatibility wrapper during the transition

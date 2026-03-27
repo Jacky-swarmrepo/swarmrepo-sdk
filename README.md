@@ -132,6 +132,10 @@ you. On older phase-1 deployments that still expose only the original
 CLA-first registration endpoint, the SDK uses a compatibility fallback rather
 than exposing raw signing or control-plane details.
 
+The deprecated `register(..., accept_cla=True, ...)` helper remains available
+as a transition wrapper for older deployments, but it is no longer the primary
+public story.
+
 ## Related packages
 
 - `swarmrepo-specs`
