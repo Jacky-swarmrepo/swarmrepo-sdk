@@ -5,29 +5,60 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import os
 from typing import Any, Mapping, Sequence
+import uuid
 
 import httpx
 from swarmrepo_specs.agent import AgentRegisterRequest
+from swarmrepo_specs.amr import AMRListItem, AMRResponse, PendingReviewItem
+from swarmrepo_specs.cla import CLA_TITLE, CURRENT_CLA_VERSION, FRIENDLY_CLA_SUMMARY
+from swarmrepo_specs.issue import IssuePublicResponse
 from swarmrepo_specs.registration import (
     AgentPublicProfile,
     LegalAcceptance,
-    LegalAcceptanceSubmission,
-    RegisterAgentRequest,
     RegistrationGrant,
     RegistrationRequirementItem,
     RegistrationRequirements,
 )
-from swarmrepo_specs.amr import AMRListItem, AMRResponse, PendingReviewItem
-from swarmrepo_specs.cla import CLA_TITLE, CURRENT_CLA_VERSION, FRIENDLY_CLA_SUMMARY
-from swarmrepo_specs.issue import IssuePublicResponse
 from swarmrepo_specs.repository import RepoCodeResponse, RepoListItem, RepoMetadataResponse
 
 from .errors import AMRError, AuthError, InternalError, RepoError, SwarmSDKError, ValidationError
+from .legal_bootstrap import (
+    bootstrap_principal_session_via_request,
+    issue_principal_bootstrap_key_via_request,
+)
 from .models import RegistrationResult
+from .principal_session import resolve_principal_session_identity
+
 
 DEFAULT_SWARM_REPO_URL = os.getenv("SWARM_REPO_URL", "https://api.swarmrepo.com")
 DEFAULT_REGISTRATION_REQUIREMENT_ID = "agent-contributor-terms"
 LEGACY_COMPATIBILITY_REGISTRATION_GRANT = "__legacy_cla_compatibility_grant__"
+
+
+def _proxy_env_present() -> bool:
+    return any(
+        os.getenv(name)
+        for name in (
+            "HTTP_PROXY",
+            "HTTPS_PROXY",
+            "ALL_PROXY",
+            "http_proxy",
+            "https_proxy",
+            "all_proxy",
+        )
+    )
+
+
+def _resolve_trust_env_mode(value: bool | str | None) -> tuple[str, bool]:
+    if isinstance(value, bool):
+        return ("env" if value else "direct", value)
+    raw_source = os.getenv("SWARM_TRUST_ENV_PROXY") if value is None else str(value)
+    raw = (raw_source or "").strip().lower()
+    if raw in {"1", "true", "yes", "on", "env", "proxy"}:
+        return ("env", True)
+    if raw in {"0", "false", "no", "off", "direct"}:
+        return ("direct", False)
+    return ("auto", True)
 
 
 def _pick_message(payload: Any, fallback: str) -> str:
@@ -153,6 +184,25 @@ def _normalize_registration_grant(payload: Any) -> RegistrationGrant:
     return _normalize_model_payload(RegistrationGrant, payload)
 
 
+def _remember_registration_state(
+    client: "SwarmClient",
+    *,
+    result: RegistrationResult,
+    provider: str,
+    model: str,
+    external_api_key: str,
+    base_url: str | None,
+) -> RegistrationResult:
+    client.set_access_token(result.access_token)
+    client.set_byok_context(
+        provider=provider,
+        model=model,
+        external_api_key=external_api_key,
+        base_url_override=base_url,
+    )
+    return result
+
+
 def _legacy_registration_requirements() -> RegistrationRequirements:
     return RegistrationRequirements(
         requirements=[
@@ -257,7 +307,21 @@ class SwarmClient:
         model: str | None = None,
         external_api_key: str | None = None,
         base_url_override: str | None = None,
-        user_agent: str = "swarmrepo-sdk/0.1.0",
+        trust_env: bool | str | None = None,
+        user_agent: str = "swarmrepo-sdk/0.1.1",
+        legal_principal_token: str | None = None,
+        legal_principal_access_key: str | None = None,
+        legal_bootstrap_key: str | None = None,
+        legal_bootstrap_secret: str | None = None,
+        legal_actor_type: str | None = None,
+        legal_actor_id: str | None = None,
+        legal_org_id: str | None = None,
+        legal_acting_user_id: str | None = None,
+        legal_client_kind: str | None = None,
+        legal_client_version: str | None = None,
+        legal_platform: str | None = None,
+        legal_hostname_hint: str | None = None,
+        legal_device_id: str | None = None,
     ) -> None:
         self.base_url = (base_url or DEFAULT_SWARM_REPO_URL).rstrip("/")
         self._access_token = access_token
@@ -265,9 +329,84 @@ class SwarmClient:
         self._model = model
         self._external_api_key = external_api_key
         self._base_url_override = base_url_override
+        self._timeout = timeout
+        self._user_agent = user_agent
+        self._trust_env_mode, self._trust_env = _resolve_trust_env_mode(trust_env)
+        self._legal_principal_token = (
+            legal_principal_token
+            or os.getenv("SWARM_LEGAL_PRINCIPAL_TOKEN")
+            or None
+        )
+        self._legal_principal_access_key = (
+            legal_principal_access_key
+            or os.getenv("SWARM_LEGAL_PRINCIPAL_ACCESS_KEY")
+            or None
+        )
+        self._legal_bootstrap_key = (
+            legal_bootstrap_key
+            or os.getenv("SWARM_LEGAL_BOOTSTRAP_KEY")
+            or None
+        )
+        self._legal_bootstrap_secret = (
+            legal_bootstrap_secret
+            or os.getenv("SWARM_LEGAL_BOOTSTRAP_SECRET")
+            or os.getenv("LEGAL_PRINCIPAL_BOOTSTRAP_SECRET")
+            or None
+        )
+        env_legal_actor_type = os.getenv("SWARM_LEGAL_ACTOR_TYPE")
+        env_legal_actor_id = os.getenv("SWARM_LEGAL_ACTOR_ID")
+        self._legal_actor_type_explicit = legal_actor_type is not None or env_legal_actor_type is not None
+        self._legal_actor_id_explicit = legal_actor_id is not None or env_legal_actor_id is not None
+        self._legal_actor_type = (
+            legal_actor_type
+            or env_legal_actor_type
+            or "individual_account"
+        ).strip().lower()
+        self._legal_actor_id = (
+            legal_actor_id
+            or env_legal_actor_id
+            or str(uuid.uuid4())
+        ).strip()
+        default_legal_org_id = (
+            legal_org_id
+            or os.getenv("SWARM_LEGAL_ORG_ID")
+            or (self._legal_actor_id if self._legal_actor_type == "organization_account" else None)
+        )
+        self._legal_org_id = default_legal_org_id.strip() if default_legal_org_id else None
+        self._legal_acting_user_id = (
+            legal_acting_user_id
+            or os.getenv("SWARM_LEGAL_ACTING_USER_ID")
+            or self._legal_actor_id
+        ).strip()
+        self._legal_client_kind = (
+            legal_client_kind
+            or os.getenv("SWARM_LEGAL_CLIENT_KIND")
+            or "swarmrepo_sdk"
+        ).strip()
+        self._legal_client_version = (
+            legal_client_version
+            or os.getenv("SWARM_LEGAL_CLIENT_VERSION")
+            or "0.2"
+        ).strip()
+        self._legal_platform = (
+            legal_platform
+            or os.getenv("SWARM_LEGAL_PLATFORM")
+            or None
+        )
+        self._legal_hostname_hint = (
+            legal_hostname_hint
+            or os.getenv("SWARM_LEGAL_HOSTNAME_HINT")
+            or None
+        )
+        self._legal_device_id = (
+            legal_device_id
+            or os.getenv("SWARM_LEGAL_DEVICE_ID")
+            or None
+        )
         self._client = httpx.AsyncClient(
             base_url=self.base_url,
             timeout=timeout,
+            trust_env=self._trust_env,
             headers={"User-Agent": user_agent},
         )
 
@@ -314,6 +453,48 @@ class SwarmClient:
                 headers["X-Agent-Base-URL"] = self._base_url_override
         return headers
 
+    async def _retry_without_env_proxy(
+        self,
+        method: str,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+        json: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> httpx.Response:
+        old_client = self._client
+        self._trust_env = False
+        self._client = httpx.AsyncClient(
+            base_url=self.base_url,
+            timeout=self._timeout,
+            trust_env=False,
+            headers={"User-Agent": self._user_agent},
+        )
+        await old_client.aclose()
+        return await self._client.request(
+            method,
+            path,
+            params=params,
+            json=json,
+            headers=headers,
+        )
+
+    def _raise_for_network_error(self, exc: httpx.RequestError) -> None:
+        raise SwarmSDKError(
+            (
+                "Network request to SwarmRepo failed. Check SWARM_REPO_URL, internet/TLS connectivity, "
+                "and whether a local proxy is intercepting traffic. Set SWARM_TRUST_ENV_PROXY=true "
+                "to force system proxy variables, false to bypass them, or leave it unset for auto mode."
+            ),
+            detail={
+                "base_url": self.base_url,
+                "trust_env_proxy_mode": self._trust_env_mode,
+                "using_env_proxy": self._trust_env,
+                "proxy_env_present": _proxy_env_present(),
+                "request_url": str(exc.request.url) if exc.request is not None else None,
+            },
+        ) from exc
+
     async def _request(
         self,
         method: str,
@@ -321,15 +502,36 @@ class SwarmClient:
         *,
         params: dict[str, Any] | None = None,
         json: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
         auth: bool = False,
     ) -> Any:
-        response = await self._client.request(
-            method,
-            path,
-            params=params,
-            json=json,
-            headers=self._build_headers(auth=auth),
-        )
+        request_headers = self._build_headers(auth=auth)
+        if headers:
+            request_headers.update(headers)
+
+        try:
+            response = await self._client.request(
+                method,
+                path,
+                params=params,
+                json=json,
+                headers=request_headers,
+            )
+        except httpx.RequestError as exc:
+            if self._trust_env_mode == "auto" and self._trust_env and _proxy_env_present():
+                try:
+                    response = await self._retry_without_env_proxy(
+                        method,
+                        path,
+                        params=params,
+                        json=json,
+                        headers=request_headers,
+                    )
+                except httpx.RequestError as retry_exc:
+                    self._raise_for_network_error(retry_exc)
+            else:
+                self._raise_for_network_error(exc)
+
         if response.status_code >= 400:
             try:
                 payload = response.json()
@@ -369,12 +571,158 @@ class SwarmClient:
             "/api/v1/register",
             json=body.model_dump(mode="json", exclude_none=True),
         )
-        return _normalize_registration_result(payload)
+        return _remember_registration_state(
+            self,
+            result=_normalize_registration_result(payload),
+            provider=provider,
+            model=model,
+            external_api_key=external_api_key,
+            base_url=base_url,
+        )
+
+    async def _issue_legal_principal_bootstrap_key(self) -> str:
+        if not self._legal_principal_access_key and not self._legal_bootstrap_secret:
+            raise AuthError(
+                "No legal principal bootstrap credential is configured. Set "
+                "SWARM_LEGAL_PRINCIPAL_ACCESS_KEY, SWARM_LEGAL_PRINCIPAL_TOKEN, "
+                "SWARM_LEGAL_BOOTSTRAP_KEY, or SWARM_LEGAL_BOOTSTRAP_SECRET "
+                "before using reviewed legal registration endpoints."
+            )
+        data = await issue_principal_bootstrap_key_via_request(
+            self._request,
+            actor_type=self._legal_actor_type,
+            principal_access_key=self._legal_principal_access_key,
+            bootstrap_secret=self._legal_bootstrap_secret,
+            actor_id=self._legal_actor_id,
+            org_id=self._legal_org_id,
+            acting_user_id=self._legal_acting_user_id,
+            label=f"{self._legal_client_kind}:{self._user_agent}",
+        )
+        bootstrap_key = data.get("bootstrap_key")
+        if not bootstrap_key:
+            raise AuthError(
+                "Legal principal bootstrap key issue did not return a bootstrap_key."
+            )
+        used_principal_access_key = bool(self._legal_principal_access_key)
+        issued_actor_id = data.get("actor_id")
+        issued_org_id = data.get("org_id")
+        issued_acting_user_id = data.get("acting_user_id")
+        if issued_actor_id and (
+            used_principal_access_key or not self._legal_actor_id_explicit
+        ):
+            self._legal_actor_id = str(issued_actor_id)
+        if issued_org_id is not None:
+            self._legal_org_id = str(issued_org_id)
+        elif used_principal_access_key or self._legal_actor_type == "individual_account":
+            self._legal_org_id = None
+        if issued_acting_user_id and (
+            used_principal_access_key or not self._legal_actor_id_explicit
+        ):
+            self._legal_acting_user_id = str(issued_acting_user_id)
+        self._legal_bootstrap_key = str(bootstrap_key)
+        return self._legal_bootstrap_key
+
+    async def _ensure_legal_principal_token(self) -> str:
+        if self._legal_principal_token:
+            return self._legal_principal_token
+        if (
+            not self._legal_bootstrap_key
+            and not self._legal_principal_access_key
+            and not self._legal_bootstrap_secret
+        ):
+            raise AuthError(
+                "No legal principal authentication is configured. Set "
+                "SWARM_LEGAL_PRINCIPAL_TOKEN, SWARM_LEGAL_BOOTSTRAP_KEY, "
+                "SWARM_LEGAL_PRINCIPAL_ACCESS_KEY, or SWARM_LEGAL_BOOTSTRAP_SECRET "
+                "before using legal registration endpoints."
+            )
+        if not self._legal_bootstrap_key:
+            await self._issue_legal_principal_bootstrap_key()
+        assert self._legal_bootstrap_key is not None
+        try:
+            data = await bootstrap_principal_session_via_request(
+                self._request,
+                bootstrap_key=self._legal_bootstrap_key,
+            )
+        except AuthError as exc:
+            if (
+                exc.error_code in {"AUTH_025", "AUTH_026", "AUTH_027"}
+                and (self._legal_principal_access_key or self._legal_bootstrap_secret)
+            ):
+                await self._issue_legal_principal_bootstrap_key()
+                assert self._legal_bootstrap_key is not None
+                data = await bootstrap_principal_session_via_request(
+                    self._request,
+                    bootstrap_key=self._legal_bootstrap_key,
+                )
+            else:
+                raise
+        token = data.get("principal_session_token")
+        if not token:
+            raise AuthError(
+                "Legal principal bootstrap did not return a principal_session_token."
+            )
+        principal_session = resolve_principal_session_identity(data)
+        if not self._legal_actor_type_explicit:
+            self._legal_actor_type = principal_session.principal_type
+        if not self._legal_actor_id_explicit:
+            self._legal_actor_id = principal_session.actor_id
+        if principal_session.org_id is not None:
+            self._legal_org_id = principal_session.org_id
+        elif principal_session.principal_type == "individual_account":
+            self._legal_org_id = None
+        if principal_session.acting_user_id:
+            self._legal_acting_user_id = principal_session.acting_user_id
+        self._legal_principal_token = str(token)
+        return self._legal_principal_token
+
+    async def _legal_principal_auth_headers(self) -> dict[str, str]:
+        token = await self._ensure_legal_principal_token()
+        return {"Authorization": f"Bearer {token}"}
+
+    def _legal_client_context(self) -> dict[str, str]:
+        context = {
+            "client_kind": self._legal_client_kind,
+            "client_version": self._legal_client_version,
+            "platform": self._legal_platform,
+            "hostname_hint": self._legal_hostname_hint,
+            "device_id": self._legal_device_id,
+        }
+        return {
+            key: value
+            for key, value in context.items()
+            if isinstance(value, str) and value.strip()
+        }
+
+    def _legal_principal_type(self) -> str:
+        return self._legal_actor_type
+
+    def _legal_principal_id(self) -> str:
+        if self._legal_actor_type == "organization_account" and self._legal_org_id:
+            return self._legal_org_id
+        return self._legal_actor_id
+
+    def _legal_principal_payload(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "actor_type": self._legal_actor_type,
+            "actor_id": self._legal_actor_id,
+            "principal_type": self._legal_principal_type(),
+            "principal_id": self._legal_principal_id(),
+        }
+        if self._legal_org_id:
+            payload["org_id"] = self._legal_org_id
+        return payload
 
     async def get_registration_requirements(self) -> RegistrationRequirements:
-        """Fetch the public legal and registration requirements."""
+        """Fetch the reviewed legal and registration requirements."""
         try:
-            payload = await self._request("GET", "/api/v1/register/requirements")
+            payload = await self._request(
+                "GET",
+                "/v1/legal/registration-requirements",
+                params=self._legal_client_context(),
+                headers=await self._legal_principal_auth_headers(),
+                auth=False,
+            )
         except SwarmSDKError as exc:
             if exc.status_code in (404, 405):
                 return _legacy_registration_requirements()
@@ -392,12 +740,24 @@ class SwarmClient:
         if any(not acceptance.accepted for acceptance in acceptances):
             raise ValidationError("All submitted legal acceptances must be accepted=True.")
 
-        body = LegalAcceptanceSubmission(acceptances=list(acceptances))
+        payload = self._legal_principal_payload()
+        payload.update(
+            {
+                "acceptances": [
+                    acceptance.model_dump(mode="json", exclude_none=True)
+                    for acceptance in acceptances
+                ],
+                "client_context": self._legal_client_context(),
+                "nonce": uuid.uuid4().hex,
+            }
+        )
         try:
-            payload = await self._request(
+            response = await self._request(
                 "POST",
-                "/api/v1/register/accept",
-                json=body.model_dump(mode="json", exclude_none=True),
+                "/v1/legal/accept-for-registration",
+                json=payload,
+                headers=await self._legal_principal_auth_headers(),
+                auth=False,
             )
         except SwarmSDKError as exc:
             if exc.status_code in (404, 405):
@@ -406,7 +766,7 @@ class SwarmClient:
                     issued_at=datetime.now(timezone.utc),
                 )
             raise
-        return _normalize_registration_grant(payload)
+        return _normalize_registration_grant(response)
 
     async def register_agent(
         self,
@@ -428,20 +788,30 @@ class SwarmClient:
                 base_url=base_url,
             )
 
-        body = RegisterAgentRequest(
-            agent_name=agent_name,
-            external_api_key=external_api_key,
+        payload: dict[str, Any] = {
+            "agent_name": agent_name,
+            "external_api_key": external_api_key,
+            "provider": provider,
+            "model": model,
+            "base_url": base_url,
+            "registration_grant": registration_grant,
+            "client_context": self._legal_client_context(),
+        }
+        payload.update(self._legal_principal_payload())
+        response = await self._request(
+            "POST",
+            "/v1/agents/register",
+            json=payload,
+            auth=False,
+        )
+        return _remember_registration_state(
+            self,
+            result=_normalize_registration_result(response),
             provider=provider,
             model=model,
+            external_api_key=external_api_key,
             base_url=base_url,
-            registration_grant=registration_grant,
         )
-        payload = await self._request(
-            "POST",
-            "/api/v1/register",
-            json=body.model_dump(mode="json", exclude_none=True),
-        )
-        return _normalize_registration_result(payload)
 
     async def register_agent_with_agreement(
         self,
@@ -520,7 +890,7 @@ class SwarmClient:
 
     async def get_me(self) -> AgentPublicProfile:
         """Fetch the current authenticated agent profile."""
-        payload = await self._request("GET", "/api/v1/me", auth=True)
+        payload = await self._request("GET", "/v1/me", auth=True)
         return _normalize_model_payload(AgentPublicProfile, payload)
 
     async def list_repos(
@@ -533,8 +903,8 @@ class SwarmClient:
         """List public repositories with optional search."""
         params: dict[str, Any] = {"offset": offset, "limit": limit}
         if search:
-            params["search"] = search
-        payload = await self._request("GET", "/api/v1/repos", params=params)
+            params["query"] = search
+        payload = await self._request("GET", "/v1/repos", params=params)
         return _normalize_model_list(RepoListItem, payload, context="list_repos()")
 
     async def search_repos(
@@ -547,7 +917,7 @@ class SwarmClient:
         """Search public repositories."""
         payload = await self._request(
             "GET",
-            "/api/v1/discover/search",
+            "/v1/discover/search",
             params={"q": query, "offset": offset, "limit": limit},
         )
         return _normalize_model_list(RepoListItem, payload, context="search_repos()")
@@ -559,7 +929,7 @@ class SwarmClient:
         auth: bool = False,
     ) -> RepoMetadataResponse:
         """Fetch repository metadata."""
-        payload = await self._request("GET", f"/api/v1/repos/{repo_id}", auth=auth)
+        payload = await self._request("GET", f"/v1/repos/{repo_id}", auth=auth)
         return _normalize_model_payload(RepoMetadataResponse, payload)
 
     async def get_repo_snapshot(
@@ -569,7 +939,7 @@ class SwarmClient:
         auth: bool = False,
     ) -> RepoCodeResponse:
         """Fetch the public repository code snapshot payload."""
-        payload = await self._request("GET", f"/api/v1/repos/{repo_id}/code", auth=auth)
+        payload = await self._request("GET", f"/v1/repos/{repo_id}/code", auth=auth)
         return _normalize_model_payload(RepoCodeResponse, payload)
 
     async def get_repo_code(
@@ -605,7 +975,7 @@ class SwarmClient:
             params["status"] = status
         payload = await self._request(
             "GET",
-            f"/api/v1/repos/{repo_id}/amr",
+            f"/v1/repos/{repo_id}/amr",
             params=params,
             auth=auth,
         )
@@ -619,7 +989,7 @@ class SwarmClient:
         auth: bool = False,
     ) -> AMRResponse:
         """Fetch detailed AMR information for a repository."""
-        payload = await self._request("GET", f"/api/v1/repos/{repo_id}/amr/{amr_id}", auth=auth)
+        payload = await self._request("GET", f"/v1/repos/{repo_id}/amr/{amr_id}", auth=auth)
         return _normalize_model_payload(AMRResponse, payload)
 
     async def list_pending_reviews(
@@ -630,7 +1000,7 @@ class SwarmClient:
         """List public pending-review items for the authenticated agent."""
         payload = await self._request(
             "GET",
-            "/api/v1/amr/pending-review",
+            "/v1/amr/pending-review",
             params={"limit": limit},
             auth=True,
         )
@@ -645,7 +1015,7 @@ class SwarmClient:
         """List open issues visible to the authenticated client."""
         payload = await self._request(
             "GET",
-            "/api/v1/issues/open",
+            "/v1/issues/open",
             params={"min_bounty": min_reward, "limit": limit},
             auth=True,
         )
