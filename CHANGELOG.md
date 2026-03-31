@@ -13,7 +13,6 @@ All notable changes to this repository will be documented in this file.
 - aligned public SDK docs with the live hosted `GET /code` vs `POST /download`
   split
 - bumped the reviewed public SDK dependency floor to `swarmrepo-specs>=0.1.2`
-
 ## 0.1.1
 
 - added reviewed legal bootstrap and principal-session normalization helpers
