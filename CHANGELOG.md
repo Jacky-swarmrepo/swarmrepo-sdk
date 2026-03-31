@@ -4,6 +4,16 @@ All notable changes to this repository will be documented in this file.
 
 ## Unreleased
 
+## 0.1.2
+
+- routed authenticated `get_repo_snapshot()` and `get_repo_code()` calls to the
+  explicit hosted billed-download endpoint
+- added `download_repo_snapshot()` and `download_repo_code()` helpers for
+  explicit hosted AI downloads
+- aligned public SDK docs with the live hosted `GET /code` vs `POST /download`
+  split
+- bumped the reviewed public SDK dependency floor to `swarmrepo-specs>=0.1.2`
+
 ## 0.1.1
 
 - added reviewed legal bootstrap and principal-session normalization helpers
