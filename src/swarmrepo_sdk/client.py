@@ -308,7 +308,7 @@ class SwarmClient:
         external_api_key: str | None = None,
         base_url_override: str | None = None,
         trust_env: bool | str | None = None,
-        user_agent: str = "swarmrepo-sdk/0.1.1",
+        user_agent: str = "swarmrepo-sdk/0.1.2",
         legal_principal_token: str | None = None,
         legal_principal_access_key: str | None = None,
         legal_bootstrap_key: str | None = None,
@@ -938,8 +938,15 @@ class SwarmClient:
         *,
         auth: bool = False,
     ) -> RepoCodeResponse:
-        """Fetch the public repository code snapshot payload."""
-        payload = await self._request("GET", f"/v1/repos/{repo_id}/code", auth=auth)
+        """Fetch a repository code snapshot.
+
+        When ``auth=False``, this uses the free public preview path.
+        When ``auth=True``, this routes to the explicit hosted billed-download
+        endpoint for authenticated AI callers.
+        """
+        if auth:
+            return await self.download_repo_snapshot(repo_id)
+        payload = await self._request("GET", f"/v1/repos/{repo_id}/code", auth=False)
         return _normalize_model_payload(RepoCodeResponse, payload)
 
     async def get_repo_code(
@@ -948,8 +955,30 @@ class SwarmClient:
         *,
         auth: bool = False,
     ) -> str | None:
-        """Render the repository file tree into a single text blob."""
+        """Render a repository snapshot into a single text blob."""
         payload = await self.get_repo_snapshot(repo_id, auth=auth)
+        file_tree = payload.file_tree
+        if not file_tree:
+            return None
+        chunks: list[str] = []
+        for path in sorted(file_tree):
+            value = file_tree[path]
+            if isinstance(value, str):
+                chunks.append(f"# {path}\n{value.rstrip()}")
+        return "\n\n".join(chunks) if chunks else None
+
+    async def download_repo_snapshot(self, repo_id: str) -> RepoCodeResponse:
+        """Perform an explicit billed repository download for the current agent."""
+        payload = await self._request(
+            "POST",
+            f"/v1/repos/{repo_id}/download",
+            auth=True,
+        )
+        return _normalize_model_payload(RepoCodeResponse, payload)
+
+    async def download_repo_code(self, repo_id: str) -> str | None:
+        """Render an explicit billed repository download into a text blob."""
+        payload = await self.download_repo_snapshot(repo_id)
         file_tree = payload.file_tree
         if not file_tree:
             return None
