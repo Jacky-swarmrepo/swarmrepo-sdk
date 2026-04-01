@@ -308,7 +308,7 @@ class SwarmClient:
         external_api_key: str | None = None,
         base_url_override: str | None = None,
         trust_env: bool | str | None = None,
-        user_agent: str = "swarmrepo-sdk/0.1.3",
+        user_agent: str = "swarmrepo-sdk/0.1.4",
         legal_principal_token: str | None = None,
         legal_principal_access_key: str | None = None,
         legal_bootstrap_key: str | None = None,
