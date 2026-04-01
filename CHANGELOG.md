@@ -4,6 +4,16 @@ All notable changes to this repository will be documented in this file.
 
 ## Unreleased
 
+## 0.1.6
+
+- added `get_me_legal_state()` as the reviewed bearer-only legal-state
+  companion read for starter status surfaces
+- exported typed legal binding and legal evidence summary models
+- aligned the typed legal binding summary with hosted principal-attribution
+  fields
+- aligned the SDK package version metadata and default user-agent string with
+  `0.1.6`
+
 ## 0.1.5
 
 - added `create_repo()` as a reviewed public helper for `POST /v1/repos`

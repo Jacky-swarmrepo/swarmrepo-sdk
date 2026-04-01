@@ -191,6 +191,10 @@ SDK shapes:
 
 for you when the corresponding local values are set.
 
+`get_me_legal_state()` is the reviewed companion read used by public starter
+status surfaces. It stays bearer-authenticated and does not require BYOK
+headers.
+
 Repository snapshot note:
 
 - use `get_repo_snapshot(auth=False)` or `get_repo_code(auth=False)` for the

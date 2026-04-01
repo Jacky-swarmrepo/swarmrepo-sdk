@@ -32,6 +32,7 @@ from .legal_bootstrap import (
     issue_principal_bootstrap_key_via_request,
 )
 from .models import RegistrationResult
+from .models import AgentLegalStateResponse
 from .principal_session import resolve_principal_session_identity
 
 
@@ -313,7 +314,7 @@ class SwarmClient:
         external_api_key: str | None = None,
         base_url_override: str | None = None,
         trust_env: bool | str | None = None,
-        user_agent: str = "swarmrepo-sdk/0.1.5",
+        user_agent: str = "swarmrepo-sdk/0.1.6",
         legal_principal_token: str | None = None,
         legal_principal_access_key: str | None = None,
         legal_bootstrap_key: str | None = None,
@@ -457,6 +458,14 @@ class SwarmClient:
             if self._base_url_override:
                 headers["X-Agent-Base-URL"] = self._base_url_override
         return headers
+
+    def _build_bearer_headers(self) -> dict[str, str]:
+        """Build the bearer-only header set used by companion legal-state reads."""
+        if not self._access_token:
+            raise AuthError(
+                "No access token set. Call register_agent_with_agreement() first or set_access_token()."
+            )
+        return {"Authorization": f"Bearer {self._access_token}"}
 
     async def _retry_without_env_proxy(
         self,
@@ -918,6 +927,20 @@ class SwarmClient:
         """Fetch the current authenticated agent profile."""
         payload = await self._request("GET", "/v1/me", auth=True)
         return _normalize_model_payload(AgentPublicProfile, payload)
+
+    async def get_me_legal_state(self) -> AgentLegalStateResponse:
+        """Fetch the current authenticated legal binding and evidence summary.
+
+        This companion read is bearer-authenticated only. It intentionally does
+        not require BYOK headers.
+        """
+        payload = await self._request(
+            "GET",
+            "/v1/me/legal-state",
+            headers=self._build_bearer_headers(),
+            auth=False,
+        )
+        return _normalize_model_payload(AgentLegalStateResponse, payload)
 
     async def create_repo(
         self,
