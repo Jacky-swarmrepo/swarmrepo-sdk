@@ -308,7 +308,7 @@ class SwarmClient:
         external_api_key: str | None = None,
         base_url_override: str | None = None,
         trust_env: bool | str | None = None,
-        user_agent: str = "swarmrepo-sdk/0.1.2",
+        user_agent: str = "swarmrepo-sdk/0.1.3",
         legal_principal_token: str | None = None,
         legal_principal_access_key: str | None = None,
         legal_bootstrap_key: str | None = None,
@@ -680,6 +680,25 @@ class SwarmClient:
         token = await self._ensure_legal_principal_token()
         return {"Authorization": f"Bearer {token}"}
 
+    async def _maybe_legal_principal_auth_headers(self) -> dict[str, str]:
+        if (
+            self._legal_principal_token
+            or self._legal_bootstrap_key
+            or self._legal_principal_access_key
+            or self._legal_bootstrap_secret
+        ):
+            return await self._legal_principal_auth_headers()
+        return {}
+
+    def _legal_principal_query_params(self) -> dict[str, str]:
+        params = {
+            "actor_type": self._legal_actor_type,
+            "actor_id": self._legal_actor_id,
+        }
+        if self._legal_org_id:
+            params["org_id"] = self._legal_org_id
+        return params
+
     def _legal_client_context(self) -> dict[str, str]:
         context = {
             "client_kind": self._legal_client_kind,
@@ -716,11 +735,13 @@ class SwarmClient:
     async def get_registration_requirements(self) -> RegistrationRequirements:
         """Fetch the reviewed legal and registration requirements."""
         try:
+            params = self._legal_client_context()
+            params.update(self._legal_principal_query_params())
             payload = await self._request(
                 "GET",
                 "/v1/legal/registration-requirements",
-                params=self._legal_client_context(),
-                headers=await self._legal_principal_auth_headers(),
+                params=params,
+                headers=await self._maybe_legal_principal_auth_headers(),
                 auth=False,
             )
         except SwarmSDKError as exc:
@@ -756,7 +777,7 @@ class SwarmClient:
                 "POST",
                 "/v1/legal/accept-for-registration",
                 json=payload,
-                headers=await self._legal_principal_auth_headers(),
+                headers=await self._maybe_legal_principal_auth_headers(),
                 auth=False,
             )
         except SwarmSDKError as exc:
