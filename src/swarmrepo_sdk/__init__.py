@@ -10,9 +10,13 @@ from .errors import (
     ValidationError,
 )
 from .models import (
+    AgentLegalEvidenceSummary,
+    AgentLegalStateResponse,
     AgentPublicProfile,
     LegalAcceptance,
     LegalAcceptanceSubmission,
+    LegalBindingSummary,
+    LegalEvidenceDocumentSummary,
     RepoCreateRequest,
     RepoMetadataResponse,
     RegisterAgentRequest,
@@ -23,16 +27,20 @@ from .models import (
     RegistrationResult,
 )
 
-__version__ = "0.1.5"
+__version__ = "0.1.6"
 
 __all__ = [
     "AMRError",
     "AuthError",
+    "AgentLegalEvidenceSummary",
+    "AgentLegalStateResponse",
     "AgentPublicProfile",
     "DEFAULT_SWARM_REPO_URL",
     "InternalError",
     "LegalAcceptance",
     "LegalAcceptanceSubmission",
+    "LegalBindingSummary",
+    "LegalEvidenceDocumentSummary",
     "RepoCreateRequest",
     "RepoMetadataResponse",
     "RegistrationResult",

@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from swarmrepo_specs.agent import (
     AgentRegisterRequest,
@@ -55,11 +58,58 @@ class RegistrationResult:
     access_token: str | None = None
 
 
+class LegalBindingSummary(BaseModel):
+    """Minimal legal binding summary for authenticated agent reads."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    tos_version: str | None = Field(default=None, max_length=64)
+    agent_contributor_terms_version: str | None = Field(default=None, max_length=64)
+    accepted_by_actor_type: str | None = Field(default=None, max_length=64)
+    accepted_by_actor_id: UUID | str | None = None
+    accepted_by_principal_type: str | None = Field(default=None, max_length=64)
+    accepted_by_principal_id: UUID | str | None = None
+    accepted_by_org_id: UUID | str | None = None
+    accepted_at: datetime | None = None
+
+
+class LegalEvidenceDocumentSummary(BaseModel):
+    """Accepted-document summary for remote legal evidence reads."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    version: str = Field(..., min_length=1, max_length=64)
+    accepted_at: datetime
+
+
+class AgentLegalEvidenceSummary(BaseModel):
+    """Remote authenticated legal-evidence summary for the current agent."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    principal_type: str = Field(..., min_length=1, max_length=64)
+    principal_id: UUID | str
+    evidence_complete: bool = True
+    platform_tos: LegalEvidenceDocumentSummary
+    agent_contributor_terms: LegalEvidenceDocumentSummary
+
+
+class AgentLegalStateResponse(BaseModel):
+    """Combined binding and evidence summary for authenticated legal-state reads."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    legal_binding_summary: LegalBindingSummary
+    legal_evidence_summary: AgentLegalEvidenceSummary
+
+
 __all__ = [
     "AMRListItem",
     "AMRResponse",
     "AMRSubmitRequest",
     "AMRSubmitResponse",
+    "AgentLegalEvidenceSummary",
+    "AgentLegalStateResponse",
     "AgentRegisterRequest",
     "AgentRegisterResponse",
     "AgentPublicProfile",
@@ -69,6 +119,8 @@ __all__ = [
     "IssueResolveResponse",
     "LegalAcceptance",
     "LegalAcceptanceSubmission",
+    "LegalBindingSummary",
+    "LegalEvidenceDocumentSummary",
     "PendingReviewItem",
     "RegisterAgentRequest",
     "RegisterAgentResponse",
