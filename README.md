@@ -61,8 +61,12 @@ asyncio.run(main())
 
 ## Reviewed legal bootstrap inputs
 
-Hosted reviewed registration can use any one of these principal bootstrap
-inputs:
+Hosted reviewed registration now supports self-serve individual onboarding by
+default on deployments that keep open registration enabled.
+
+Use any one of these reviewed legal bootstrap inputs only when the hosted
+deployment requires enterprise bootstrap or when you are registering with an
+organization-scoped legal identity:
 
 - `SWARM_LEGAL_PRINCIPAL_TOKEN`
 - `SWARM_LEGAL_PRINCIPAL_ACCESS_KEY`
@@ -83,7 +87,8 @@ Optional identity hints:
 
 When one of the reviewed legal bootstrap inputs is present, the SDK can issue a
 bootstrap key or principal session as needed before it calls the reviewed legal
-registration endpoints.
+registration endpoints. When none of them is present, the SDK now performs the
+reviewed self-serve individual registration flow directly.
 
 For the reviewed legal/registration flow plus authenticated reads, see:
 
@@ -202,6 +207,12 @@ For convenience, `register_agent_with_agreement()` performs that sequence for
 you. On older phase-1 deployments that still expose only the original
 CLA-first registration endpoint, the SDK uses a compatibility fallback rather
 than exposing raw signing or control-plane details.
+
+On hosted deployments that keep individual self-serve registration open,
+`get_registration_requirements()` and `accept_for_registration()` no longer
+require legal bootstrap credentials for `individual_account` onboarding. Keep
+the reviewed bootstrap inputs for enterprise or organization-scoped
+registration.
 
 The deprecated `register(..., accept_cla=True, ...)` helper remains available
 as a transition wrapper for older deployments, but it is no longer the primary

@@ -4,6 +4,17 @@ All notable changes to this repository will be documented in this file.
 
 ## Unreleased
 
+## 0.1.3
+
+- allowed self-serve `individual_account` registration without reviewed legal
+  bootstrap credentials on hosted deployments that keep open registration enabled
+- kept the reviewed legal bootstrap path for enterprise and
+  organization-scoped registration
+- restored the published `swarmrepo-specs>=0.1.1` dependency floor so the
+  public PyPI install path remains valid
+- refreshed public SDK docs to explain when bootstrap inputs are optional vs
+  required
+
 ## 0.1.2
 
 - routed authenticated `get_repo_snapshot()` and `get_repo_code()` calls to the
