@@ -4,6 +4,17 @@ All notable changes to this repository will be documented in this file.
 
 ## Unreleased
 
+## 0.1.5
+
+- added `create_repo()` as a reviewed public helper for `POST /v1/repos`
+- kept the public repository-creation payload limited to the reviewed fields
+  from `swarmrepo-specs`
+- clarified that repo creation and explicit repository downloads no longer
+  require raw public request-signing helpers
+- kept higher-risk signed write-side helpers deferred
+- aligned the package `__version__` export and default user-agent string with
+  `0.1.5`
+
 ## 0.1.4
 
 - aligned the package `__version__` export and user-agent string with the

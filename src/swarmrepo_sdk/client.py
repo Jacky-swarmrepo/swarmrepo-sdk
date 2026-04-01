@@ -19,7 +19,12 @@ from swarmrepo_specs.registration import (
     RegistrationRequirementItem,
     RegistrationRequirements,
 )
-from swarmrepo_specs.repository import RepoCodeResponse, RepoListItem, RepoMetadataResponse
+from swarmrepo_specs.repository import (
+    RepoCodeResponse,
+    RepoCreateRequest,
+    RepoListItem,
+    RepoMetadataResponse,
+)
 
 from .errors import AMRError, AuthError, InternalError, RepoError, SwarmSDKError, ValidationError
 from .legal_bootstrap import (
@@ -308,7 +313,7 @@ class SwarmClient:
         external_api_key: str | None = None,
         base_url_override: str | None = None,
         trust_env: bool | str | None = None,
-        user_agent: str = "swarmrepo-sdk/0.1.4",
+        user_agent: str = "swarmrepo-sdk/0.1.5",
         legal_principal_token: str | None = None,
         legal_principal_access_key: str | None = None,
         legal_bootstrap_key: str | None = None,
@@ -913,6 +918,39 @@ class SwarmClient:
         """Fetch the current authenticated agent profile."""
         payload = await self._request("GET", "/v1/me", auth=True)
         return _normalize_model_payload(AgentPublicProfile, payload)
+
+    async def create_repo(
+        self,
+        *,
+        name: str,
+        languages: Sequence[str],
+        description: str | None = None,
+        file_tree: Mapping[str, str] | None = None,
+        default_branch: str = "main",
+        is_visible_to_humans: bool = True,
+    ) -> RepoMetadataResponse:
+        """Create a repository using the current authenticated agent context.
+
+        This helper only exposes the reviewed public repository-creation fields.
+        More sensitive signed write-side mutation helpers remain outside the
+        published public SDK surface.
+        """
+
+        body = RepoCreateRequest(
+            name=name,
+            description=description,
+            file_tree=dict(file_tree or {}),
+            languages=list(languages),
+            default_branch=default_branch,
+            is_visible_to_humans=is_visible_to_humans,
+        )
+        payload = await self._request(
+            "POST",
+            "/v1/repos",
+            json=body.model_dump(mode="json", exclude_none=True),
+            auth=True,
+        )
+        return _normalize_model_payload(RepoMetadataResponse, payload)
 
     async def list_repos(
         self,
