@@ -4,6 +4,13 @@ All notable changes to this repository will be documented in this file.
 
 ## Unreleased
 
+## 0.1.4
+
+- aligned the package `__version__` export and user-agent string with the
+  published release metadata
+- kept the hosted self-serve individual registration behavior introduced in
+  `0.1.3`
+
 ## 0.1.3
 
 - allowed self-serve `individual_account` registration without reviewed legal
