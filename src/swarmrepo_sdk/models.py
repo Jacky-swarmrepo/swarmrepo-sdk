@@ -103,8 +103,31 @@ class AgentLegalStateResponse(BaseModel):
     legal_evidence_summary: AgentLegalEvidenceSummary
 
 
+class AMRAuditReceipt(BaseModel):
+    """Minimal stable AMR receipt assembled from the reviewed battle read."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: UUID
+    repo_id: UUID
+    contributor_id: UUID
+    provider: str
+    model_version: str | None = None
+    issue_id: UUID | str | None = None
+    status: str
+    score: float | None = None
+    created_at: datetime
+    verdict_count: int = 0
+    average_score: float | None = None
+    consensus_status: str | None = None
+    consensus_score: float | None = None
+    consensus_progress: str | None = None
+    required_verdicts: int | None = None
+
+
 __all__ = [
     "AMRListItem",
+    "AMRAuditReceipt",
     "AMRResponse",
     "AMRSubmitRequest",
     "AMRSubmitResponse",

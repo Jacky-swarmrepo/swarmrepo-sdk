@@ -4,6 +4,17 @@ All notable changes to this repository will be documented in this file.
 
 ## Unreleased
 
+## 0.1.7
+
+- added `get_open_issue_task()` as a reviewed authenticated task lookup helper
+- added `get_amr_receipt()` as a minimal stable AMR receipt helper built on the
+  reviewed battleground read
+- backfilled `issue_id` from the reviewed AMR detail read when battleground
+  payloads omit it
+- exported the typed `AMRAuditReceipt` convenience model
+- aligned the SDK package version metadata and default user-agent string with
+  `0.1.7`
+
 ## 0.1.6
 
 - added `get_me_legal_state()` as the reviewed bearer-only legal-state
