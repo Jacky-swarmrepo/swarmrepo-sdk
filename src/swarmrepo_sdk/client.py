@@ -11,7 +11,7 @@ import httpx
 from swarmrepo_specs.agent import AgentRegisterRequest
 from swarmrepo_specs.amr import AMRListItem, AMRResponse, PendingReviewItem
 from swarmrepo_specs.cla import CLA_TITLE, CURRENT_CLA_VERSION, FRIENDLY_CLA_SUMMARY
-from swarmrepo_specs.issue import IssuePublicResponse
+from swarmrepo_specs.issue import IssueCreateRequest, IssuePublicResponse
 from swarmrepo_specs.registration import (
     AgentPublicProfile,
     LegalAcceptance,
@@ -351,7 +351,7 @@ class SwarmClient:
         external_api_key: str | None = None,
         base_url_override: str | None = None,
         trust_env: bool | str | None = None,
-        user_agent: str = "swarmrepo-sdk/0.1.7",
+        user_agent: str = "swarmrepo-sdk/0.1.8",
         legal_principal_token: str | None = None,
         legal_principal_access_key: str | None = None,
         legal_bootstrap_key: str | None = None,
@@ -1018,6 +1018,27 @@ class SwarmClient:
         )
         return _normalize_model_payload(RepoMetadataResponse, payload)
 
+    async def create_issue(
+        self,
+        repo_id: str,
+        *,
+        title: str,
+        description: str,
+    ) -> IssuePublicResponse:
+        """Create a durable issue/task object for the current authenticated agent."""
+
+        body = IssueCreateRequest(
+            title=title,
+            description=description,
+        )
+        payload = await self._request(
+            "POST",
+            f"/v1/repos/{repo_id}/issues",
+            json=body.model_dump(mode="json", exclude_none=True),
+            auth=True,
+        )
+        return _normalize_issue_response(payload)
+
     async def list_repos(
         self,
         *,
@@ -1191,6 +1212,68 @@ class SwarmClient:
         for item in await self.list_open_issues(min_reward=min_reward, limit=limit):
             if str(item.id) == str(task_id):
                 return item
+        return None
+
+    async def get_repo_issue(
+        self,
+        repo_id: str,
+        issue_id: str,
+        *,
+        include_bearer: bool | None = None,
+        limit: int = 100,
+    ) -> IssuePublicResponse | None:
+        """Resolve one repository issue from the reviewed observatory page read."""
+
+        if limit <= 0:
+            raise ValidationError("get_repo_issue() requires limit > 0.")
+
+        use_bearer = bool(self._access_token) if include_bearer is None else include_bearer
+        headers = self._build_optional_bearer_headers() if use_bearer else None
+        page_limit = min(limit, 100)
+        offset = 0
+        scanned = 0
+
+        while scanned < limit:
+            payload = await self._request(
+                "GET",
+                f"/v1/repos/{repo_id}/issues/page",
+                params={"offset": offset, "limit": page_limit},
+                headers=headers,
+                auth=False,
+            )
+            if not isinstance(payload, Mapping):
+                raise ValidationError(
+                    "Expected object response for get_repo_issue().",
+                    detail={"payload_type": type(payload).__name__},
+                )
+            items = payload.get("items")
+            if not isinstance(items, list):
+                raise ValidationError(
+                    "Expected issues page items list for get_repo_issue().",
+                    detail={"payload_type": type(items).__name__},
+                )
+
+            normalized_items = [_normalize_issue_response(item) for item in items]
+            for item in normalized_items:
+                if str(item.id) == str(issue_id):
+                    return item
+
+            page_count = len(normalized_items)
+            scanned += page_count
+            if page_count == 0:
+                return None
+
+            pagination = payload.get("pagination")
+            total = pagination.get("total") if isinstance(pagination, Mapping) else None
+            offset += page_count
+            if isinstance(total, int) and offset >= total:
+                return None
+            if page_count < page_limit:
+                return None
+            remaining = limit - scanned
+            if remaining <= 0:
+                return None
+            page_limit = min(remaining, 100)
         return None
 
     async def get_amr_receipt(

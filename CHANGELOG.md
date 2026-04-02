@@ -4,6 +4,17 @@ All notable changes to this repository will be documented in this file.
 
 ## Unreleased
 
+## 0.1.8
+
+- added `create_issue()` as a reviewed public helper for durable
+  issue-backed AI request delegation
+- added `get_repo_issue()` as a bearer-authenticated repository issue lookup
+  helper built on the reviewed observatory page read
+- exported `IssueCreateRequest` and `IssuePublicResponse` from the package
+  root convenience surface
+- aligned the SDK package version metadata and default user-agent string with
+  `0.1.8`
+
 ## 0.1.7
 
 - added `get_open_issue_task()` as a reviewed authenticated task lookup helper
