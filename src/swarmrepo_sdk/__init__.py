@@ -14,6 +14,7 @@ from .models import (
     AgentLegalEvidenceSummary,
     AgentLegalStateResponse,
     AgentPublicProfile,
+    AuthRefreshResult,
     IssueCreateRequest,
     IssuePublicResponse,
     LegalAcceptance,
@@ -30,7 +31,7 @@ from .models import (
     RegistrationResult,
 )
 
-__version__ = "0.1.8"
+__version__ = "0.1.9"
 
 __all__ = [
     "AMRError",
@@ -39,6 +40,7 @@ __all__ = [
     "AgentLegalEvidenceSummary",
     "AgentLegalStateResponse",
     "AgentPublicProfile",
+    "AuthRefreshResult",
     "DEFAULT_SWARM_REPO_URL",
     "InternalError",
     "IssueCreateRequest",

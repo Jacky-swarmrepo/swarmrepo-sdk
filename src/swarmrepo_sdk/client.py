@@ -31,7 +31,13 @@ from .legal_bootstrap import (
     bootstrap_principal_session_via_request,
     issue_principal_bootstrap_key_via_request,
 )
-from .models import AMRAuditReceipt, AgentLegalStateResponse, RegistrationResult
+from .models import (
+    AMRAuditReceipt,
+    AgentLegalStateResponse,
+    AuthRefreshResult,
+    LegalBindingSummary,
+    RegistrationResult,
+)
 from .principal_session import resolve_principal_session_identity
 
 
@@ -104,6 +110,30 @@ def _normalize_timestamp(value: datetime | None) -> datetime:
     return value.astimezone(timezone.utc)
 
 
+def _normalize_optional_datetime(value: Any, *, field_name: str) -> datetime | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return _normalize_timestamp(value)
+    if isinstance(value, str):
+        candidate = value.strip()
+        if not candidate:
+            return None
+        if candidate.endswith("Z"):
+            candidate = f"{candidate[:-1]}+00:00"
+        try:
+            return _normalize_timestamp(datetime.fromisoformat(candidate))
+        except ValueError as exc:
+            raise ValidationError(
+                f"Expected ISO8601 timestamp for {field_name}.",
+                detail={"field": field_name, "value": value},
+            ) from exc
+    raise ValidationError(
+        f"Expected ISO8601 timestamp for {field_name}.",
+        detail={"field": field_name, "payload_type": type(value).__name__},
+    )
+
+
 def _normalize_model_payload(
     model_cls,
     payload: Mapping[str, Any],
@@ -164,6 +194,14 @@ def _normalize_registration_result(payload: Any) -> RegistrationResult:
     if cla_accepted is not None:
         cla_accepted = bool(cla_accepted)
 
+    legal_binding_summary = payload.get("legal_binding_summary")
+    normalized_legal_binding_summary = None
+    if isinstance(legal_binding_summary, Mapping):
+        normalized_legal_binding_summary = _normalize_model_payload(
+            LegalBindingSummary,
+            legal_binding_summary,
+        )
+
     return RegistrationResult(
         agent=agent,
         owner_id=payload["owner_id"],
@@ -174,6 +212,13 @@ def _normalize_registration_result(payload: Any) -> RegistrationResult:
         cla_accepted=cla_accepted,
         cla_version=payload.get("cla_version"),
         access_token=payload.get("access_token"),
+        refresh_token=payload.get("refresh_token"),
+        expires_at=_normalize_optional_datetime(payload.get("expires_at"), field_name="expires_at"),
+        refresh_expires_at=_normalize_optional_datetime(
+            payload.get("refresh_expires_at"),
+            field_name="refresh_expires_at",
+        ),
+        legal_binding_summary=normalized_legal_binding_summary,
     )
 
 
@@ -312,6 +357,32 @@ def _normalize_amr_audit_receipt(payload: Any) -> AMRAuditReceipt:
     return _normalize_model_payload(AMRAuditReceipt, normalized)
 
 
+def _normalize_auth_refresh_result(payload: Any) -> AuthRefreshResult:
+    if not isinstance(payload, Mapping):
+        raise ValidationError(
+            "Expected object response for credential refresh.",
+            detail={"payload_type": type(payload).__name__},
+        )
+
+    normalized = {
+        "access_token": payload.get("access_token"),
+        "refresh_token": payload.get("refresh_token"),
+        "expires_at": _normalize_optional_datetime(payload.get("expires_at"), field_name="expires_at"),
+        "refresh_expires_at": _normalize_optional_datetime(
+            payload.get("refresh_expires_at"),
+            field_name="refresh_expires_at",
+        ),
+        "rotation_id": payload.get("rotation_id"),
+    }
+    legal_binding_summary = payload.get("legal_binding_summary")
+    if isinstance(legal_binding_summary, Mapping):
+        normalized["legal_binding_summary"] = _normalize_model_payload(
+            LegalBindingSummary,
+            legal_binding_summary,
+        )
+    return AuthRefreshResult.model_validate(normalized)
+
+
 def _map_error(response: httpx.Response, payload: Any) -> SwarmSDKError:
     message = _pick_message(payload, f"SwarmRepo request failed with status {response.status_code}.")
     error_code = _pick_error_code(payload)
@@ -351,7 +422,7 @@ class SwarmClient:
         external_api_key: str | None = None,
         base_url_override: str | None = None,
         trust_env: bool | str | None = None,
-        user_agent: str = "swarmrepo-sdk/0.1.8",
+        user_agent: str = "swarmrepo-sdk/0.1.9",
         legal_principal_token: str | None = None,
         legal_principal_access_key: str | None = None,
         legal_bootstrap_key: str | None = None,
@@ -965,6 +1036,30 @@ class SwarmClient:
             base_url=base_url,
             registration_grant=grant.registration_grant,
         )
+
+    async def refresh_access_token(
+        self,
+        *,
+        refresh_token: str,
+        client_context: Mapping[str, str] | None = None,
+    ) -> AuthRefreshResult:
+        """Rotate one reviewed refresh token and receive fresh credentials."""
+        normalized_refresh_token = str(refresh_token or "").strip()
+        if not normalized_refresh_token:
+            raise ValidationError("Refresh token is required.")
+
+        payload = await self._request(
+            "POST",
+            "/v1/auth/refresh",
+            json={
+                "refresh_token": normalized_refresh_token,
+                "client_context": dict(client_context or self._legal_client_context()),
+            },
+            auth=False,
+        )
+        result = _normalize_auth_refresh_result(payload)
+        self.set_access_token(result.access_token)
+        return result
 
     async def get_me(self) -> AgentPublicProfile:
         """Fetch the current authenticated agent profile."""
