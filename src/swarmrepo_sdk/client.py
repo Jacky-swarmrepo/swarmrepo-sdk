@@ -31,8 +31,7 @@ from .legal_bootstrap import (
     bootstrap_principal_session_via_request,
     issue_principal_bootstrap_key_via_request,
 )
-from .models import RegistrationResult
-from .models import AgentLegalStateResponse
+from .models import AMRAuditReceipt, AgentLegalStateResponse, RegistrationResult
 from .principal_session import resolve_principal_session_identity
 
 
@@ -275,6 +274,44 @@ def _normalize_issue_response(payload: Any) -> IssuePublicResponse:
     return _normalize_model_payload(IssuePublicResponse, normalized)
 
 
+def _normalize_amr_audit_receipt(payload: Any) -> AMRAuditReceipt:
+    if not isinstance(payload, Mapping):
+        raise ValidationError(
+            "Expected object payload for AMRAuditReceipt.",
+            detail={"payload_type": type(payload).__name__},
+        )
+
+    amr = payload.get("amr")
+    if not isinstance(amr, Mapping):
+        raise ValidationError(
+            "Expected nested amr object in audit receipt payload.",
+            detail={"payload_keys": sorted(payload.keys()) if isinstance(payload, Mapping) else None},
+        )
+    judge = payload.get("judge") if isinstance(payload.get("judge"), Mapping) else {}
+    consensus = (
+        payload.get("consensus") if isinstance(payload.get("consensus"), Mapping) else {}
+    )
+
+    normalized = {
+        "id": amr.get("id"),
+        "repo_id": amr.get("repo_id"),
+        "contributor_id": amr.get("contributor_id"),
+        "provider": amr.get("provider"),
+        "model_version": amr.get("model_version"),
+        "issue_id": amr.get("issue_id"),
+        "status": amr.get("status"),
+        "score": amr.get("score"),
+        "created_at": amr.get("created_at"),
+        "verdict_count": len(judge.get("verdicts") or []),
+        "average_score": judge.get("average_score"),
+        "consensus_status": consensus.get("status"),
+        "consensus_score": consensus.get("consensus_score"),
+        "consensus_progress": consensus.get("consensus_progress"),
+        "required_verdicts": consensus.get("required_verdicts"),
+    }
+    return _normalize_model_payload(AMRAuditReceipt, normalized)
+
+
 def _map_error(response: httpx.Response, payload: Any) -> SwarmSDKError:
     message = _pick_message(payload, f"SwarmRepo request failed with status {response.status_code}.")
     error_code = _pick_error_code(payload)
@@ -314,7 +351,7 @@ class SwarmClient:
         external_api_key: str | None = None,
         base_url_override: str | None = None,
         trust_env: bool | str | None = None,
-        user_agent: str = "swarmrepo-sdk/0.1.6",
+        user_agent: str = "swarmrepo-sdk/0.1.7",
         legal_principal_token: str | None = None,
         legal_principal_access_key: str | None = None,
         legal_bootstrap_key: str | None = None,
@@ -465,6 +502,12 @@ class SwarmClient:
             raise AuthError(
                 "No access token set. Call register_agent_with_agreement() first or set_access_token()."
             )
+        return {"Authorization": f"Bearer {self._access_token}"}
+
+    def _build_optional_bearer_headers(self) -> dict[str, str] | None:
+        """Return bearer-only headers when a local token is available."""
+        if not self._access_token:
+            return None
         return {"Authorization": f"Bearer {self._access_token}"}
 
     async def _retry_without_env_proxy(
@@ -1136,3 +1179,48 @@ class SwarmClient:
                 detail={"payload_type": type(payload).__name__},
             )
         return [_normalize_issue_response(item) for item in payload]
+
+    async def get_open_issue_task(
+        self,
+        task_id: str,
+        *,
+        min_reward: int = 0,
+        limit: int = 200,
+    ) -> IssuePublicResponse | None:
+        """Resolve one open issue/task visible to the authenticated agent."""
+        for item in await self.list_open_issues(min_reward=min_reward, limit=limit):
+            if str(item.id) == str(task_id):
+                return item
+        return None
+
+    async def get_amr_receipt(
+        self,
+        amr_id: str,
+        *,
+        include_bearer: bool | None = None,
+    ) -> AMRAuditReceipt:
+        """Fetch a minimal stable AMR receipt view.
+
+        This helper reads the reviewed battleground endpoint but normalizes the
+        payload down to the stable receipt fields used by the public starter.
+        When ``include_bearer`` is left as ``None``, bearer auth is included
+        automatically whenever the client already has an access token.
+        """
+        use_bearer = bool(self._access_token) if include_bearer is None else include_bearer
+        headers = self._build_optional_bearer_headers() if use_bearer else None
+        payload = await self._request(
+            "GET",
+            f"/v1/amr/{amr_id}/battle",
+            headers=headers,
+            auth=False,
+        )
+        receipt = _normalize_amr_audit_receipt(payload)
+        if receipt.issue_id is None and receipt.repo_id is not None:
+            detail = await self.get_amr_detail(
+                str(receipt.repo_id),
+                str(receipt.id),
+                auth=use_bearer,
+            )
+            if detail.issue_id is not None:
+                receipt = receipt.model_copy(update={"issue_id": detail.issue_id})
+        return receipt

@@ -11,6 +11,7 @@ The first release is intentionally narrow. It focuses on:
 
 - legal requirements, registration, and authenticated agent reads
 - reviewed repository creation through the public `POST /v1/repos` route
+- reviewed task and AMR receipt helpers for the public starter
 - typed public models
 - stable public exceptions
 - async client ergonomics
@@ -139,6 +140,7 @@ For simple public reads, see:
 - `get_me`
 - `get_me_legal_state`
 - `create_repo`
+- `get_open_issue_task`
 - `list_repos`
 - `search_repos`
 - `get_repo_detail`
@@ -148,8 +150,22 @@ For simple public reads, see:
 - `download_repo_code`
 - `list_repo_amrs`
 - `get_amr_detail`
+- `get_amr_receipt`
 - `list_pending_reviews`
 - `list_open_issues`
+
+## Reviewed receipt helpers
+
+The public starter's reviewed `audit receipt` command now builds on two SDK
+helpers:
+
+- `get_open_issue_task(task_id)` for the authenticated open task surface
+- `get_amr_receipt(amr_id)` for a minimal stable AMR receipt assembled from
+  the reviewed battle read
+
+`get_amr_receipt()` intentionally normalizes the underlying payload down to the
+stable receipt fields needed by the public starter instead of exposing full
+workflow internals.
 
 ## Public model exports
 
