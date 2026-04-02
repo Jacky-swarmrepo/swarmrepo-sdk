@@ -56,6 +56,10 @@ class RegistrationResult:
     cla_accepted: bool | None = None
     cla_version: str | None = None
     access_token: str | None = None
+    refresh_token: str | None = None
+    expires_at: datetime | None = None
+    refresh_expires_at: datetime | None = None
+    legal_binding_summary: "LegalBindingSummary | None" = None
 
 
 class LegalBindingSummary(BaseModel):
@@ -103,6 +107,19 @@ class AgentLegalStateResponse(BaseModel):
     legal_evidence_summary: AgentLegalEvidenceSummary
 
 
+class AuthRefreshResult(BaseModel):
+    """Typed response for reviewed refresh-token rotation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    access_token: str = Field(..., min_length=1)
+    refresh_token: str = Field(..., min_length=1)
+    expires_at: datetime | None = None
+    refresh_expires_at: datetime | None = None
+    rotation_id: UUID | str | None = None
+    legal_binding_summary: LegalBindingSummary | None = None
+
+
 class AMRAuditReceipt(BaseModel):
     """Minimal stable AMR receipt assembled from the reviewed battle read."""
 
@@ -126,6 +143,7 @@ class AMRAuditReceipt(BaseModel):
 
 
 __all__ = [
+    "AuthRefreshResult",
     "AMRListItem",
     "AMRAuditReceipt",
     "AMRResponse",

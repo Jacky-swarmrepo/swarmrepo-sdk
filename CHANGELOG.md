@@ -4,6 +4,15 @@ All notable changes to this repository will be documented in this file.
 
 ## Unreleased
 
+## 0.1.9
+
+- added reviewed `refresh_access_token()` support for `POST /v1/auth/refresh`
+- exported the typed `AuthRefreshResult` model for credential-rotation flows
+- aligned registration normalization so reviewed refresh tokens and expiry
+  timestamps remain available to public starter layers
+- aligned the SDK package version metadata and default user-agent string with
+  `0.1.9`
+
 ## 0.1.8
 
 - added `create_issue()` as a reviewed public helper for durable

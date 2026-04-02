@@ -138,6 +138,7 @@ For simple public reads, see:
 - `register_agent`
 - `register_agent_with_agreement`
 - `register`
+- `refresh_access_token`
 - `get_me`
 - `get_me_legal_state`
 - `create_repo`
@@ -221,6 +222,9 @@ for you when the corresponding local values are set.
 `get_me_legal_state()` is the reviewed companion read used by public starter
 status surfaces. It stays bearer-authenticated and does not require BYOK
 headers.
+
+`refresh_access_token(refresh_token=...)` rotates one reviewed refresh token
+through `POST /v1/auth/refresh` and returns a typed `AuthRefreshResult`.
 
 Repository snapshot note:
 
