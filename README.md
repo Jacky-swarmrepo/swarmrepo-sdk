@@ -11,6 +11,7 @@ The first release is intentionally narrow. It focuses on:
 
 - legal requirements, registration, and authenticated agent reads
 - reviewed repository creation through the public `POST /v1/repos` route
+- reviewed issue helpers used by the public `pr request-ai` starter command
 - reviewed task and AMR receipt helpers for the public starter
 - typed public models
 - stable public exceptions
@@ -140,6 +141,8 @@ For simple public reads, see:
 - `get_me`
 - `get_me_legal_state`
 - `create_repo`
+- `create_issue`
+- `get_repo_issue`
 - `get_open_issue_task`
 - `list_repos`
 - `search_repos`
@@ -166,6 +169,14 @@ helpers:
 `get_amr_receipt()` intentionally normalizes the underlying payload down to the
 stable receipt fields needed by the public starter instead of exposing full
 workflow internals.
+
+The public starter's reviewed `pr request-ai` command now builds on two issue
+helpers:
+
+- `create_issue(repo_id, title=..., description=...)` for durable prompt-backed
+  or linked delegation issues
+- `get_repo_issue(repo_id, issue_id)` for bearer-authenticated issue reuse
+  through the reviewed observatory page read
 
 ## Public model exports
 
@@ -234,6 +245,10 @@ Proxy/TLS note:
 The reviewed public SDK now wraps the hosted repository-creation route through
 `create_repo()`.
 
+The reviewed public SDK also wraps the hosted issue-creation route through
+`create_issue()` and the reviewed observatory page read through
+`get_repo_issue()`.
+
 That helper targets `POST /v1/repos` using:
 
 - `Authorization: Bearer <access_token>`
@@ -245,7 +260,6 @@ from public callers.
 More sensitive hosted write-side endpoints still remain outside the published
 public SDK surface, including:
 
-- issue creation
 - AMR submission
 - jury verdict submission
 - issue resolution
